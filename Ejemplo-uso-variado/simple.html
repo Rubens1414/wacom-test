@@ -1,0 +1,378 @@
+<!-- Estilos CSS para la aplicación -->
+<style>
+/* Estilos generales */
+*{font-family:sans-serif}
+/* Fondo del body con gradiente */
+body{background:linear-gradient(312deg,#364960,#81848c)}
+/* Estilo de botones con gradiente y sombra */
+button{background:linear-gradient(45deg,#1e1e1e,transparent);border:1px solid #4c4c4c;filter:drop-shadow(0 2px 2px #2e2e2e);padding:5px 10px;color:#d9d9d9;border-radius:8px;cursor:pointer;margin:3px}
+/* Estilos de tabla */
+table,td,tr{border:0}
+td{width:16.6667%}
+table{border-collapse:collapse;width:60%;margin:0 auto;margin-top:6px}
+/* Clase para texto alineado a la derecha */
+.r{text-align:right;color:#e0e0e0;font-size:12px;font-family:monospace}
+/* Contenedor principal de la aplicación */
+#app{max-width:630px;background:#fff;padding:30px;margin:50px auto;border-radius:15px;filter:drop-shadow(0 4px 6px #00000077);text-align:center;color:#fff;background:linear-gradient(45deg,#111,#3d3d3d);color:#848484;font-size:12px}
+/* Fondo del área de la aplicación */
+#appbg{position:absolute;top:65px;left:34px;background:linear-gradient(180deg,#1c1c1c,#1e1e1e);right:27px;bottom:190px;border-radius:12px;opacity:.5;mix-blend-mode:luminosity;border:1px solid #505050}
+/* Contenedor del área de firma */
+#appcont{position:relative;zoom:.6;width:800px;height:480px;margin:0 auto}
+/* Estilos adicionales */
+#radd{margin:8px}
+#wlogo{margin:14px;filter:invert(1);opacity:.5}
+/* SVG para la firma */
+#ssvvgg{position:absolute;top:0;left:0}
+/* Borde del canvas */
+canvas{border:1px solid #3b3b3b}
+</style>
+<!-- Contenedor principal de la aplicación -->
+<div id="app">
+    <!-- Fondo de la aplicación -->
+    <div id="appbg"></div>
+    <!-- Botón de conexión con la tableta Wacom -->
+    <button onclick="connect()" style="width:100%;">CONNECT</button><br><input type="radio" id="radd" /><br>
+    <!-- Contenedor del área de firma -->
+    <div id="appcont" style="position:relative;zoom:.6;width:800px;height:480px;margin:0 auto">
+        <!-- Canvas para dibujar -->
+        <canvas id="myCanvas" width="800" height="480"></canvas>
+        <!-- SVG para capturar la firma -->
+        <svg width="800" height="480" id="ssvvgg"></svg>
+        <!-- Botones de control del canvas -->
+        <div id="canvas-buttons" style="position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;gap:6px;">
+            <!-- Botón para limpiar la pantalla -->
+            <button onclick="clearscreen()" style="width:140px;">CLEAR SCREEN</button>
+            <!-- Botón para enviar la imagen a la tableta -->
+            <button onclick="sendimage()" style="width:140px;">SEND IMAGE</button>
+            <!-- Botón para cargar la imagen por defecto -->
+            <button onclick="img.src='./Templates/gondola-signature.jpg'; sendimage()" style="width:140px;">DEFAULT IMAGE</button>
+        </div>
+    </div>
+    <!-- Controles principales -->
+    <!-- Selector de archivo y botón para guardar firma -->
+    <input type="file" id="ab" /> <button onclick="saveSvg(ssvvgg,'firma.svg')">SAVE SIGNATURE</button><br>
+    <!-- Botones de control principales -->
+    <button onclick="clearscreen()">CLEAR SCREEN</button>
+    <button onclick="sendimage()">SEND IMAGE</button>
+    <button onclick="img.src='./Templates/gondola-signature.jpg'; sendimage()">DEFAULT IMAGE</button><br>
+    
+    <!-- Tabla de configuración de la tableta -->
+    <table>
+        <tbody>
+            <!-- Primera fila de controles -->
+            <tr>
+                <!-- Control de color de fondo -->
+                <td class="r">BACKGROUND</td>
+                <td><input id="colo" value="#000000" type="color" onchange="changebackground()" /></td>
+                <!-- Control de brillo -->
+                <td class="r">BRIGHTNESS</td>
+                <td><input id="brig" value=3 min=0 max=3 step=1 type="range" onchange="adjustbrigtness()" /></td>
+                <!-- Control de tinta -->
+                <td class="r">INK</td>
+                <td><input type="checkbox" id="imod" onchange="inkmode()" checked /></td>
+            </tr>
+            <!-- Segunda fila de controles -->
+            <tr>
+                <!-- Control de color del lápiz -->
+                <td class="r">PEN</td>
+                <td><input id="cola" value="#1566d1" type="color" onchange="changepen()" /></td>
+                <!-- Control de grosor del lápiz -->
+                <td class="r">DOT</td>
+                <td><input id="pens" value=1 min=0 max=5 step=1 type="range" onchange="changepen()" /></td>
+                <!-- Control de modo de escritura -->
+                <td class="r">MODE</td>
+                <td><input type="checkbox" id="wmod" onchange="writingmode()" checked /></td>
+            </tr>
+        </tbody>
+    </table><br><br>
+</div>
+
+<!-- Importar el driver de la tableta Wacom -->
+<script src="signature-hid.js"></script>
+<script>
+    // Aplicación de demostración para tableta Wacom STU-540
+
+    // Crear instancia del objeto para controlar la tableta Wacom
+    var wacom = new wacomstu540()
+
+    // Variables globales
+    var image;          // Almacena la imagen actual
+    var poly;           // Almacena la línea poligonal actual para el trazo
+    var pen_state = false  // Estado del lápiz (tocando/no tocando)
+    var imgreq = false;    // Flag para solicitud de imagen
+    var lastPressure = 0.0 // Última presión registrada del lápiz
+
+    // Elementos del canvas para dibujo
+    var canvas = document.getElementById('myCanvas')    // Elemento canvas
+    var context = myCanvas.getContext("2d")            // Contexto 2D para dibujar
+    var img = new Image()                              // Objeto para cargar imágenes
+
+    // Verificar si hay una tableta Wacom conectada
+    // Si no está conectada, reduce la opacidad de la app
+    wacom.checkAvailable().then(function (supp) {
+        if (!supp) app.style.opacity = 0.3
+    })
+
+    // Agregar listeners para eventos HID (conexión/desconexión de la tableta)
+    wacom.onHidChange(function (e) {
+        if (e == 'connect')
+            app.style.opacity = 1        // Tableta conectada: app visible
+        else {
+            wacom.device = null          // Limpiar referencia al dispositivo
+            app.style.opacity = 0.3      // Tableta desconectada: app semi-transparente
+        }
+    })
+
+    // Función para conectar y configurar la tableta
+    async function connect() {
+        if (await wacom.connect()) {
+            // Inicialización de la tableta
+            await wacom.clearScreen()                 // Limpiar pantalla
+            //await wacom.setBackgroundColor(colo.value) // Establecer color de fondo
+            await wacom.setPenColorAndWidth(cola.value, pens.value)  // Config. lápiz
+            await wacom.setWritingMode(1)            // Modo de escritura con timing
+            await wacom.setWritingArea({ x1: 0, y1: 0, x2: 800, y2: 480 }) // Área de escritura
+            await wacom.setInking(true)              // Habilitar tinta
+            
+            // Configurar callback para eventos del lápiz
+            wacom.onPenData(function (pen) {
+                pointevent(pen.press > 0 && imod.checked, pen.cx, pen.cy, pen.press)
+            })
+            
+            // Inicializar el sistema de polylines
+            addpoly()
+            
+            // Configurar carga de imagen por defecto
+            img.onload = loadImg
+            setTimeout(function () {
+                img.src = "./Templates/gondola-signature.jpg"
+            }, 150)
+            
+            // Marcar radio button como checked
+            radd.checked = true
+        }
+    }
+
+    // Funciones de control de la tableta
+
+    // Activa/desactiva el modo de tinta en la tableta
+    async function inkmode() {
+        await wacom.setInking(imod.checked == 1)
+    }
+
+    // Cambia el modo de escritura (0: básico, 1: con timing)
+    async function writingmode() {
+        await wacom.setWritingMode(wmod.checked == 1 ? 1 : 0)
+    }
+
+    // Limpia la pantalla de la tableta y el canvas
+    async function clearscreen() {
+        await wacom.clearScreen()                            // Limpia tableta
+        context.fillStyle = colo.value;                      // Color de fondo
+        context.fillRect(0, 0, canvas.width, canvas.height); // Limpia canvas
+        ssvvgg.innerHTML = ''                               // Limpia SVG
+    }
+
+    // Cambia el color de fondo de la tableta
+    async function changebackground() {
+        await wacom.setBackgroundColor(colo.value)  // Establece color
+        await clearscreen()                         // Refresca pantalla
+    }
+
+    // Ajusta el brillo de la pantalla de la tableta
+    async function adjustbrigtness() {
+        console.log('do not call this often')      // Advertencia de uso
+        await wacom.setBacklight(brig.value)       // Cambia brillo
+    }
+
+    // Cambia el color y grosor del lápiz
+    async function changepen() {
+        await wacom.setPenColorAndWidth(cola.value, pens.value)
+    }
+
+    // Envía una imagen a la tableta
+    async function sendimage() {
+        console.log(image)
+        await wacom.setImage(image)       // Envía imagen actual
+        imgreq = false                    // Reset flag de solicitud
+        ssvvgg.innerHTML = ''             // Limpia SVG
+        await inkmode()                   // Restaura modo de tinta
+    }
+
+
+
+    // Funciones auxiliares para renderizado de tinta sensible a presión
+
+    // Calcula la diferencia absoluta entre dos números
+    function pressdiff(a, b) {
+        if (a > b)  return a - b
+        else return b - a
+    }
+
+    // Transforma el grosor del trazo según el nivel de presión
+    function makestroke(v) {
+        // Desplaza la escala (0.5-1.5) para permitir magnificación y reducción
+        let pf = lastPressure + 0.5  
+        // Asegura un ancho mínimo del trazo
+        return Math.max(v * pf, 0.5)
+    }
+
+    // Agrega una nueva línea poligonal al SVG
+    function addpoly() {
+        // Crea elemento polyline SVG
+        poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+        // Configura estilo: sin relleno, color del lápiz y grosor sensible a presión
+        poly.setAttributeNS(null, "style", "fill:none;stroke:" + cola.value + ";stroke-width:" + makestroke(parseInt(pens.value) + 1) + ";")
+        // Agrega al contenedor SVG
+        ssvvgg.append(poly)
+    }
+
+    // Agrega un punto a la última línea poligonal
+    function polypoint(x, y) {
+        // Crea punto SVG
+        var point = ssvvgg.createSVGPoint()
+        point.x = x
+        point.y = y
+        // Agrega al polyline actual
+        poly.points.appendItem(point)
+    }
+    function pointInPolygon(x, y, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0], yi = polygon[i][1];
+        const xj = polygon[j][0], yj = polygon[j][1];
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < (xj - xi) * (y - yi) / (yj - yi + 0.00001) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+// Coordenadas del área poligonal
+const areaEnvio = [
+    [356, 356], // esquina superior derecha
+    [142, 364], // esquina superior izquierda
+    [148, 397], // esquina inferior izquierda
+    [363, 403]  // esquina inferior derecha
+];
+const areaBorrar = [
+    [436, 364], // superior izquierda
+    [653, 364], // superior derecha
+    [653, 406], // inferior derecha
+    [436, 406]  // inferior izquierda
+];
+    // Manejador de eventos del lápiz
+   let enviadoFlag = false; // Flag para evitar múltiples envíos
+   let enviadoBorrar = false; // Flag para evitar múltiples envíos
+async function clearDrawing() {
+    // Limpiar el SVG en la interfaz
+    ssvvgg.innerHTML = '';
+    
+    if (wacom && wacom.device) {
+        try {
+            // Desactivar la tinta
+            await wacom.setInking(false);
+            // Reenviar la última imagen para limpiar los trazos
+            await wacom.setImage(image);
+            // Reactivar la tinta
+            await wacom.setInking(true);
+        } catch (error) {
+            console.error('Error clearing drawing:', error);
+        }
+    }
+}
+
+async function pointevent(z, x, y, p) {
+    if (z && !pen_state) {
+        // El lápiz acaba de tocar la pantalla: inicia nueva línea
+        addpoly();
+    }
+
+    if (z) {
+        // Si está tocando y el punto está dentro del área, y aún no se ha enviado
+        if (pointInPolygon(x, y, areaEnvio) && !enviadoFlag) {
+            console.log("enviado");
+            enviadoFlag = true;
+        }
+        // Si está tocando y el punto está dentro del área de borrar, y aún no se ha enviado
+        if (pointInPolygon(x, y, areaBorrar) && !enviadoBorrar) {
+            console.log("borrado");
+             clearDrawing(); // Envía la imagen (borrado)
+            enviadoBorrar = true;
+        }
+
+        if (pressdiff(p, lastPressure) > 0.02) {
+            polypoint(x, y)
+            lastPressure = p
+            addpoly()
+        }
+        polypoint(x, y)
+        console.log("x: " + x + " y: " + y + " p: " + p);
+    } else {
+        // Cuando deja de tocar, resetea el flag
+        enviadoFlag = false;
+        enviadoBorrar = false;
+    }
+    pen_state = z; // Actualiza el estado del lápiz
+}
+    
+
+    // Callback para carga de imágenes
+    // Manipula la imagen y la convierte a formato 24.BGR desde el canvas
+   async function loadImg() {
+    context.drawImage(img, 0, 0, 800, 480);
+
+    if (!img.src.includes("gondola-signature.jpg")) {
+        await wacom.setWritingArea({ x1: 0, y1: 0, x2: 800, y2: 480 })
+    }
+
+    var imageData = context.getImageData(0, 0, 800, 480)
+    console.log('Loaded image size: ' + imageData.data.length)
+    const rgb24 = new Uint8Array((imageData.data.length / 4) * 3)
+    var i = 0, j = 0;
+    while (i < imageData.data.length) {
+        rgb24[j++] = imageData.data[i + 2]  // B
+        rgb24[j++] = imageData.data[i + 1]  // G
+        rgb24[j++] = imageData.data[i + 0]  // R
+        i += 4
+    }
+    image = rgb24
+    console.log('Converted image size: ' + image.length)
+    await sendimage()
+}
+
+    // Control de carga de archivos de imagen
+    ab.onchange = function (evt) {
+        var files = evt.target.files
+        var file = files[0]
+        if (file == null) return
+
+        // Verifica que sea una imagen
+        if (file.type.match('image.*')) {
+            var reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onload = function (evt) {
+                if (evt.target.readyState == FileReader.DONE) {
+                    img.src = evt.target.result
+                    img.onload = loadImg
+                }
+            }
+        } else alert("not an image")
+    }
+
+    //Helper to download the signature SVG
+    function saveSvg(svgEl, name) {
+        svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+        var svgData = svgEl.outerHTML
+        var preface = '<?xml version="1.0" standalone="no"?>\r\n'
+        var svgBlob = new Blob([preface, svgData], { type: "image/svg+xml;charset=utf-8" })
+        var svgUrl = URL.createObjectURL(svgBlob)
+        var downloadLink = document.createElement("a")
+        downloadLink.href = svgUrl
+        downloadLink.download = name
+        document.body.appendChild(downloadLink)
+        downloadLink.click()
+        document.body.removeChild(downloadLink)
+    }
+
+</script>

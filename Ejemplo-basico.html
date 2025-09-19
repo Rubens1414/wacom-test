@@ -1,0 +1,79 @@
+<!-- Estilos CSS para la aplicación -->
+<style>
+/* Estilos generales */
+*{font-family:sans-serif}
+/* Fondo del body con gradiente */
+body{background:linear-gradient(312deg,#364960,#81848c)}
+/* Estilo de botones con gradiente y sombra */
+button{background:linear-gradient(45deg,#1e1e1e,transparent);border:1px solid #4c4c4c;filter:drop-shadow(0 2px 2px #2e2e2e);padding:5px 10px;color:#d9d9d9;border-radius:8px;cursor:pointer;margin:3px}
+/* Estilos de tabla */
+table,td,tr{border:0}
+td{width:16.6667%}
+table{border-collapse:collapse;width:60%;margin:0 auto;margin-top:6px}
+/* Clase para texto alineado a la derecha */
+.r{text-align:right;color:#e0e0e0;font-size:12px;font-family:monospace}
+/* Contenedor principal de la aplicación */
+#app{max-width:630px;background:#fff;padding:30px;margin:50px auto;border-radius:15px;filter:drop-shadow(0 4px 6px #00000077);text-align:center;color:#fff;background:linear-gradient(45deg,#111,#3d3d3d);color:#848484;font-size:12px}
+/* Fondo del área de la aplicación */
+#appbg{position:absolute;top:65px;left:34px;background:linear-gradient(180deg,#1c1c1c,#1e1e1e);right:27px;bottom:190px;border-radius:12px;opacity:.5;mix-blend-mode:luminosity;border:1px solid #505050}
+/* Contenedor del área de firma */
+#appcont{position:relative;zoom:.6;width:800px;height:480px;margin:0 auto}
+/* Estilos adicionales */
+#radd{margin:8px}
+#wlogo{margin:14px;filter:invert(1);opacity:.5}
+/* SVG para la firma */
+#ssvvgg{position:absolute;top:0;left:0}
+/* Borde del canvas */
+canvas{border:1px solid #3b3b3b}
+</style>
+<!-- Contenedor principal de la aplicación -->
+<div id="app">
+    <!-- Fondo de la aplicación -->
+    <div id="appbg"></div>
+    <!-- Botón de conexión con la tableta Wacom -->
+    <button onclick="connectWacom()" style="width:100%;">CONNECT</button><br><input type="radio" id="radd" /><br>
+    <!-- Contenedor del área de firma -->
+    <div id="appcont" style="position:relative;zoom:.6;width:800px;height:480px;margin:0 auto">
+        <!-- Canvas para dibujar -->
+        <canvas id="myCanvas" width="800" height="480"></canvas>
+        <!-- SVG para capturar la firma -->
+        <svg width="800" height="480" id="ssvvgg"></svg>
+        <!-- Botones de control del canvas -->
+        
+    </div>
+    
+    
+    <!-- Tabla de configuración de la tableta -->
+   
+</div>
+
+<!-- Importar el driver de la tableta Wacom -->
+<script type="module">
+    import { WacomService } from './wacom.service.js';
+
+    // Crear instancia del servicio
+    const wacomService = new WacomService();
+    let devices = await navigator.hid.getDevices();
+    try{
+             await wacomService.checkAvailable(devices[0]);
+
+    }catch(e){
+        console.error('Todavia no se a cargado la tableta', e);
+    }
+    if(devices.length>0){
+        console.log('Se detectó la tableta Wacom');
+    }else{
+        console.log('No se pudo detectar la tableta Wacom');
+    }
+    async function connectWacom() {
+        const connected = await wacomService.connect();
+        if (connected) {
+            console.log('Conectado a la tableta Wacom');
+        } else {
+            console.log('No se pudo conectar a la tableta Wacom');
+        }
+    }
+    // Exponer la función globalmente para el botón
+    window.connectWacom = connectWacom;
+    window.wacomService = wacomService;
+</script>
