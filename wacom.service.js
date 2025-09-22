@@ -58,7 +58,6 @@ export class WacomService {
             penColorAndWidth: 0x2D,
             penDataTiming: 0x34,
         };
-        console.log('FUNCIONAAAA');
         this.device = null;
         this.image = null;
 
@@ -286,6 +285,74 @@ export class WacomService {
             }
         }
     }
+    async accept() {
+        if (!this.checkConnected()) return
+        if ( this.device) {
+
+            try{
+                const base64Image = this.captureSignatureRegionBase64();
+
+                await this.setInking(false); 
+                await this.setImage(this.image);
+                await this.setInking(true);
+
+                console.log("Captured Signature Image (Base64):", base64Image);
+            }catch(error){
+                console.error('Error in accept():', error);
+            }
+                         ssvvgg.innerHTML = '';
+
+        }
+    }
+      async captureSignatureRegionBase64() {
+        const x = 138;
+        const y = 6;
+        const width = 670 - 138;
+        const height = 326 - 6;
+
+        // 1. Serializa el SVG de la tinta
+        const svgElement = ssvvgg;
+        // Ajusta el viewBox y tamaño del SVG para exportar solo la región deseada
+        const prevViewBox = svgElement.getAttribute("viewBox");
+        const prevWidth = svgElement.getAttribute("width");
+        const prevHeight = svgElement.getAttribute("height");
+        svgElement.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
+        svgElement.setAttribute("width", width);
+        svgElement.setAttribute("height", height);
+
+        const svgData = new XMLSerializer().serializeToString(svgElement);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        // 2. Dibuja el SVG en un canvas temporal
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = function () {
+                tempCtx.clearRect(0, 0, width, height);
+                tempCtx.drawImage(img, 0, 0, width, height);
+                URL.revokeObjectURL(url);
+                resolve();
+            };
+            img.src = url;
+        });
+
+        // Restaura atributos originales del SVG
+        if (prevViewBox !== null) svgElement.setAttribute("viewBox", prevViewBox);
+        else svgElement.removeAttribute("viewBox");
+        if (prevWidth !== null) svgElement.setAttribute("width", prevWidth);
+        else svgElement.removeAttribute("width");
+        if (prevHeight !== null) svgElement.setAttribute("height", prevHeight);
+        else svgElement.removeAttribute("height");
+
+        // 3. Exporta a base64 PNG (solo tinta, fondo transparente)
+        return tempCanvas.toDataURL('image/png');
+    }
+     
     async setInking(enabled = true) {
         if (!this.checkConnected()) return
         await this.sendData(this.command.inkMode, new Uint8Array([enabled ? 1 : 0]))
@@ -306,6 +373,7 @@ export class WacomService {
             // Acciones de área de envío/borrado
             if (this.pointInPolygon(x, y, this.areaEnvio) && !this.enviadoFlag) {
                 console.log("enviado");
+                await this.accept();
                 this.enviadoFlag = true;
             }
             if (this.pointInPolygon(x, y, this.areaBorrar) && !this.enviadoBorrar) {
@@ -328,13 +396,7 @@ export class WacomService {
         }
         this.pen_state = z;
     }
-    
-   
-  
-    
-   
-   
-     async  inkmode( enabled = true) {
+    async  inkmode( enabled = true) {
          if (!this.checkConnected()) return
         await this.sendData(this.command.inkMode, new Uint8Array([enabled ? 1 : 0]))
     }
