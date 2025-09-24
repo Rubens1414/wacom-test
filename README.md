@@ -147,8 +147,48 @@ this.config = {
 - Comprueba que la página se sirva por HTTPS o localhost
 
 ### Error de permisos
-- El navegador debe solicitar permisos para acceder al dispositivo HID
-- Acepta los permisos cuando se soliciten
+
+En Linux, si la tableta no se detecta o tienes errores de permisos, probablemente debas agregar una regla de udev:
+
+#### ✅ Solución: agregar una regla de udev
+
+1. **Verifica tu dispositivo:**
+    ```bash
+    lsusb
+    ```
+    Deberías ver algo como:
+    ```
+    Bus 001 Device 005: ID 056a:00a8 Wacom Co., Ltd STU-540
+    ```
+    El primer número (`056a`) es el vendorId (en decimal → 1386).
+    El segundo (`00a8`) es el productId (en decimal → 168).
+
+2. **Crea una regla en `/etc/udev/rules.d/99-wacom.rules`:**
+    ```bash
+    sudo nano /etc/udev/rules.d/99-wacom.rules
+    ```
+    Y agrega:
+    ```
+    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="056a", MODE="0666"
+    ```
+    (Esto da acceso a todos los usuarios. Si quieres restringir, usa `GROUP="plugdev"` en lugar de `MODE="0666"` y asegúrate de estar en ese grupo).
+
+3. **Recarga reglas:**
+    ```bash
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+    ```
+
+4. **Desconecta y vuelve a conectar el dispositivo.**
+
+5. **Reinicia Chrome/Edge y prueba otra vez.**
+
+#### 🔎 Para probar rápido sin reglas
+Si quieres confirmar que es un problema de permisos, ejecuta Chrome con permisos de root:
+```bash
+sudo google-chrome --enable-features=HidEnableWebHid
+```
+Si ahí sí conecta → confirmamos que son permisos de udev.
 
 ### Problemas de conexión
 - Intenta desconectar y reconectar la tableta
